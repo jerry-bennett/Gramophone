@@ -5,13 +5,13 @@
 	<key>BuildMachineOSBuild</key>
 	<string>20G95</string>
 	<key>CFBundleDisplayName</key>
-	<string>Gramaphone</string>
+	<string>Gramophone</string>
 	<key>CFBundleExecutable</key>
 	<string>Gramaphone</string>
 	<key>CFBundleIdentifier</key>
-	<string>com.yourcompany.Gramaphone</string>
+	<string>com.yourcompany.Gramophone</string>
 	<key>CFBundleName</key>
-	<string>Gramaphone</string>
+	<string>Gramophone</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>

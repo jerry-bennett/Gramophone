@@ -14,11 +14,13 @@
 //==============================================================================
 /**
 */
-class GramaphoneAudioProcessorEditor  : public juce::AudioProcessorEditor
+class GramophoneAudioProcessorEditor  : public juce::AudioProcessorEditor,
+                                        private Button::Listener,
+                                        private ChangeListener
 {
 public:
-    GramaphoneAudioProcessorEditor (GramaphoneAudioProcessor&);
-    ~GramaphoneAudioProcessorEditor() override;
+    GramophoneAudioProcessorEditor (GramophoneAudioProcessor&);
+    ~GramophoneAudioProcessorEditor() override;
 
     //==============================================================================
     void paint (juce::Graphics&) override;
@@ -33,7 +35,15 @@ private:
     
     // This reference is provided as a quick way for your editor to
     // access the processor object that created it.
-    GramaphoneAudioProcessor& processor;
+    GramophoneAudioProcessor& processor;
+
+    ScopedPointer<AudioThumbnailComp> thumbnail;
+
+    TextButton startStopButton;
+
+    void buttonClicked(Button* buttonThatWasClicked) override;
+
+    void changeListenerCallback(ChangeBroadcaster* source) override;
     
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (GramaphoneAudioProcessorEditor)
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (GramophoneAudioProcessorEditor)
 };

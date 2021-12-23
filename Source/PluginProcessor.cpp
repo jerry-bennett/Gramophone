@@ -8,9 +8,10 @@
 
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
+#include "maximilian.h"
 
 //==============================================================================
-GramaphoneAudioProcessor::GramaphoneAudioProcessor()
+GramophoneAudioProcessor::GramophoneAudioProcessor()
 #ifndef JucePlugin_PreferredChannelConfigurations
      : AudioProcessor (BusesProperties()
                      #if ! JucePlugin_IsMidiEffect
@@ -20,16 +21,23 @@ GramaphoneAudioProcessor::GramaphoneAudioProcessor()
                        .withOutput ("Output", juce::AudioChannelSet::stereo(), true)
                      #endif
                        ),state(*this,nullptr,Identifier("ChainParameters"),createParameterLayout()),
-                        treeState(*this, nullptr, ProjectInfo::projectName, createParameterLayout())
+                        treeState(*this, nullptr, ProjectInfo::projectName, createParameterLayout()),
+                        thumbnailCache(1),
+                        readAheadThread("transport read ahead")
+                        {
+                            formatManager.registerBasicFormats();
+                            readAheadThread.startThread(3);
+                        }
 #endif
+//{
+//}
+
+GramophoneAudioProcessor::~GramophoneAudioProcessor()
 {
+    transportSource.setSource(nullptr);
 }
 
-GramaphoneAudioProcessor::~GramaphoneAudioProcessor()
-{
-}
-
-AudioProcessorValueTreeState::ParameterLayout GramaphoneAudioProcessor::createParameterLayout(){
+AudioProcessorValueTreeState::ParameterLayout GramophoneAudioProcessor::createParameterLayout(){
     
     std::vector<std::unique_ptr<RangedAudioParameter>> params;
     
@@ -45,12 +53,12 @@ AudioProcessorValueTreeState::ParameterLayout GramaphoneAudioProcessor::createPa
 }
 
 //==============================================================================
-const juce::String GramaphoneAudioProcessor::getName() const
+const juce::String GramophoneAudioProcessor::getName() const
 {
     return JucePlugin_Name;
 }
 
-bool GramaphoneAudioProcessor::acceptsMidi() const
+bool GramophoneAudioProcessor::acceptsMidi() const
 {
    #if JucePlugin_WantsMidiInput
     return true;
@@ -59,7 +67,7 @@ bool GramaphoneAudioProcessor::acceptsMidi() const
    #endif
 }
 
-bool GramaphoneAudioProcessor::producesMidi() const
+bool GramophoneAudioProcessor::producesMidi() const
 {
    #if JucePlugin_ProducesMidiOutput
     return true;
@@ -68,7 +76,7 @@ bool GramaphoneAudioProcessor::producesMidi() const
    #endif
 }
 
-bool GramaphoneAudioProcessor::isMidiEffect() const
+bool GramophoneAudioProcessor::isMidiEffect() const
 {
    #if JucePlugin_IsMidiEffect
     return true;
@@ -77,50 +85,49 @@ bool GramaphoneAudioProcessor::isMidiEffect() const
    #endif
 }
 
-double GramaphoneAudioProcessor::getTailLengthSeconds() const
+double GramophoneAudioProcessor::getTailLengthSeconds() const
 {
     return 0.0;
 }
 
-int GramaphoneAudioProcessor::getNumPrograms()
+int GramophoneAudioProcessor::getNumPrograms()
 {
     return 1;   // NB: some hosts don't cope very well if you tell them there are 0 programs,
                 // so this should be at least 1, even if you're not really implementing programs.
 }
 
-int GramaphoneAudioProcessor::getCurrentProgram()
+int GramophoneAudioProcessor::getCurrentProgram()
 {
     return 0;
 }
 
-void GramaphoneAudioProcessor::setCurrentProgram (int index)
+void GramophoneAudioProcessor::setCurrentProgram (int index)
 {
 }
 
-const juce::String GramaphoneAudioProcessor::getProgramName (int index)
+const juce::String GramophoneAudioProcessor::getProgramName (int index)
 {
     return {};
 }
 
-void GramaphoneAudioProcessor::changeProgramName (int index, const juce::String& newName)
+void GramophoneAudioProcessor::changeProgramName (int index, const juce::String& newName)
 {
 }
 
 //==============================================================================
-void GramaphoneAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
+void GramophoneAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
-    // Use this method as the place to do any pre-playback
-    // initialisation that you need..
+    transportSource.prepareToPlay(samplesPerBlock, sampleRate);
+    maxiSample.load("/Users/jerrybennett/JuceTestPlugins/Gramophone/Source/crackle.wav");
 }
 
-void GramaphoneAudioProcessor::releaseResources()
+void GramophoneAudioProcessor::releaseResources()
 {
-    // When playback stops, you can use this as an opportunity to free up any
-    // spare memory, etc.
+    transportSource.releaseResources();
 }
 
 #ifndef JucePlugin_PreferredChannelConfigurations
-bool GramaphoneAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
+bool GramophoneAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
 {
   #if JucePlugin_IsMidiEffect
     juce::ignoreUnused (layouts);
@@ -145,7 +152,7 @@ bool GramaphoneAudioProcessor::isBusesLayoutSupported (const BusesLayout& layout
 }
 #endif
 
-void GramaphoneAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
+void GramophoneAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
 {
     juce::ScopedNoDenormals noDenormals;
     auto totalNumInputChannels  = getTotalNumInputChannels();
@@ -153,8 +160,12 @@ void GramaphoneAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, j
 
     for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
         buffer.clear (i, 0, buffer.getNumSamples());
-
-    freqVal = 4500;
+    
+    //block for playing audio
+    
+    //transportSource.getNextAudioBlock(AudioSourceChannelInfo(buffer));
+    
+    freqVal = 6000;
     freqVal2 = 1300;
     QVal = 9.5f;
     ampVal = 1.f;
@@ -169,46 +180,87 @@ void GramaphoneAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, j
     biquad2.setAmpdB(ampVal2);
     biquad2.setFilterType(filterType2);
     
+    //double w = maxiSample.play();
+    
     for (int channel = 0; channel < totalNumInputChannels; ++channel)
     {
         for (int n = 0; n < buffer.getNumSamples() ; n++){
             float x = buffer.getReadPointer(channel)[n];
+            //transportSource.getNextAudioBlock(AudioSourceChannelInfo(buffer));
             float z = biquad2.processSample(x, channel);
             float y = biquad.processSample(z, channel);
-            buffer.getWritePointer(channel)[n] = 0.5 * y;
+            float w = biquad.processSample(maxiSample.play(), channel);
+            
+            buffer.getWritePointer(channel)[n] = y + w;
         }
-
+        //buffer.getWritePointer(channel)[channel] = maxiSample.play();
     }
 }
 
 //==============================================================================
-bool GramaphoneAudioProcessor::hasEditor() const
+bool GramophoneAudioProcessor::hasEditor() const
 {
     return true; // (change this to false if you choose to not supply an editor)
 }
 
-juce::AudioProcessorEditor* GramaphoneAudioProcessor::createEditor()
+juce::AudioProcessorEditor* GramophoneAudioProcessor::createEditor()
 {
-    return new GramaphoneAudioProcessorEditor (*this);
+    return new GramophoneAudioProcessorEditor (*this);
 }
 
 //==============================================================================
-void GramaphoneAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
+void GramophoneAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
-    // You should use this method to store your parameters in the memory block.
-    // You could do that either as raw data, or use the XML or ValueTree classes
-    // as intermediaries to make it easy to save and load complex data.
+    XmlElement xml("plugin-settings");
+
+    xml.setAttribute("audiofile", currentlyLoadedFile.getFullPathName());
+
+    copyXmlToBinary(xml, destData);
 }
 
-void GramaphoneAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
+void GramophoneAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
 {
-    // You should use this method to restore your parameters from this memory block,
-    // whose contents will have been created by the getStateInformation() call.
+    std::unique_ptr<XmlElement> xmlState(getXmlFromBinary(data, sizeInBytes));
+
+    if (xmlState != nullptr)
+    {
+        if (xmlState->hasTagName("plugin-settings"))
+        {
+            currentlyLoadedFile = File::createFileWithoutCheckingPath(xmlState->getStringAttribute("audiofile"));
+            if (currentlyLoadedFile.existsAsFile())
+            {
+                loadFileIntoTransport(currentlyLoadedFile);
+            }
+        }
+    }
 }
 
 //==============================================================================
 // This creates new instances of the plugin..
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
 {
-    return new GramaphoneAudioProcessor();
+    return new GramophoneAudioProcessor();
+}
+
+void GramophoneAudioProcessor::loadFileIntoTransport(const File& audioFile)
+{
+    // unload the previous file source and delete it..
+    transportSource.stop();
+    transportSource.setSource(nullptr);
+    currentAudioFileSource = nullptr;
+
+    AudioFormatReader* reader = formatManager.createReaderFor(audioFile);
+    currentlyLoadedFile = audioFile;
+
+    if (reader != nullptr)
+    {
+        currentAudioFileSource = new AudioFormatReaderSource(reader, true);
+
+        // ..and plug it into our transport source
+        transportSource.setSource(
+            currentAudioFileSource,
+            32768,                   // tells it to buffer this many samples ahead
+            &readAheadThread,        // this is the background thread to use for reading-ahead
+            reader->sampleRate);     // allows for sample rate correction
+    }
 }

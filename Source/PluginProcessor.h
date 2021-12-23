@@ -9,18 +9,20 @@
 #pragma once
 
 #include "../JuceLibraryCode/JuceHeader.h"
+#include "AudioThumbnailComp.h"
 #include "Biquad.h"
 #include "Biquad2.h"
+#include "maximilian.h"
 
 //==============================================================================
 /**
 */
-class GramaphoneAudioProcessor  : public juce::AudioProcessor
+class GramophoneAudioProcessor  : public juce::AudioProcessor
 {
 public:
     //==============================================================================
-    GramaphoneAudioProcessor();
-    ~GramaphoneAudioProcessor() override;
+    GramophoneAudioProcessor();
+    ~GramophoneAudioProcessor() override;
 
     //==============================================================================
     void prepareToPlay (double sampleRate, int samplesPerBlock) override;
@@ -66,6 +68,13 @@ public:
     float QVal2 = 2.f;
     float ampVal2 = 0.1f;
     
+    AudioTransportSource transportSource;
+    AudioFormatManager formatManager;
+    File currentlyLoadedFile;
+    AudioThumbnailCache thumbnailCache;
+    
+    void loadFileIntoTransport(const File& audioFile);
+    
     Biquad::FilterType filterType = Biquad::FilterType::HPF;
     Biquad2::FilterType2 filterType2 = Biquad2::FilterType2::LPF;
 
@@ -74,6 +83,11 @@ private:
     
     Biquad biquad;
     Biquad2 biquad2;
+    
+    maxiSample maxiSample;
+    
+    ScopedPointer<AudioFormatReaderSource> currentAudioFileSource;
+    TimeSliceThread readAheadThread;
     //==============================================================================
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (GramaphoneAudioProcessor)
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (GramophoneAudioProcessor)
 };

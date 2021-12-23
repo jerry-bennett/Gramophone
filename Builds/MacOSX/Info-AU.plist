@@ -8,11 +8,11 @@
     <key>CFBundleIconFile</key>
     <string></string>
     <key>CFBundleIdentifier</key>
-    <string>com.yourcompany.Gramaphone</string>
+    <string>com.yourcompany.Gramophone</string>
     <key>CFBundleName</key>
-    <string>Gramaphone</string>
+    <string>Gramophone</string>
     <key>CFBundleDisplayName</key>
-    <string>Gramaphone</string>
+    <string>Gramophone</string>
     <key>CFBundlePackageType</key>
     <string>BNDL</string>
     <key>CFBundleSignature</key>
@@ -29,11 +29,11 @@
     <array>
       <dict>
         <key>name</key>
-        <string>yourcompany: Gramaphone</string>
+        <string>yourcompany: Gramophone</string>
         <key>description</key>
-        <string>Gramaphone</string>
+        <string>Gramophone</string>
         <key>factoryFunction</key>
-        <string>GramaphoneAUFactory</string>
+        <string>GramophoneAUFactory</string>
         <key>manufacturer</key>
         <string>Manu</string>
         <key>type</key>
